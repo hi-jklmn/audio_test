@@ -1,14 +1,21 @@
 # -lm provides math library
 CFLAGS=-Wall -ggdb -lm
 
-all: clean audio
+TARGET_DIR=target
+
+.PHONY: build clean run
+
+build: clean
+	mkdir target
+	cc $(CFLAGS) audio.c -o $(TARGET_DIR)/audio
 
 clean:
-	rm -f audio
-	rm -f out.raw
-	rm -f out.wav
+	rm -rf target
+	rm -f *.raw
+	rm -f *.wav
 
-run: clean audio
-	./audio
+run: clean build
+	./target/audio
 	sox -r 44.1k -e signed -b 32 -c 1 out.raw out.wav
 	play out.wav
+
