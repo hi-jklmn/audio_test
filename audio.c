@@ -11,7 +11,7 @@
 typedef struct {
     size_t num_samples;
     size_t rate;
-    int32_t* samples;
+    double* samples;
 } audio_buf;
 
 audio_buf new_audio_buf(size_t millis, size_t sample_rate) {
@@ -24,16 +24,22 @@ audio_buf new_audio_buf(size_t millis, size_t sample_rate) {
         .num_samples = num_samples,
     };
 
-    size_t n_bytes = sizeof(int32_t) * num_samples;
+    size_t n_bytes = sizeof(double) * num_samples;
 
-    ret.samples = (int32_t*) malloc(n_bytes);
+    ret.samples = (double*) malloc(n_bytes);
     memset(ret.samples, 0, n_bytes);
 
     return ret;
 }
 
 void fwrite_audio_buf(audio_buf buf, FILE *stream) {
-    fwrite(buf.samples, sizeof(int32_t), buf.num_samples, stream);
+    int32_t *int_buf = malloc(buf.num_samples * sizeof(int32_t));
+
+    for (int i = 0; i < buf.num_samples; i++) {
+        int_buf[i] = INT32_MAX * fmin(fmax(buf.samples[i], -1.0), 1.0);
+    }
+
+    fwrite(int_buf, sizeof(int32_t), buf.num_samples, stream);
 }
 
 void apply_fade_audio_buf(
@@ -50,13 +56,13 @@ void apply_fade_audio_buf(
 
     for (size_t i = 0; i < start_fade_samples; i++) {
         double amplitude = i / (double) start_fade_samples;
-        buf.samples[i] = (int32_t) (buf.samples[i] * amplitude);
+        buf.samples[i] = buf.samples[i] * amplitude;
     }
 
     for (size_t i = 1; i <= end_fade_samples; i++) {
         double amplitude = (i - 1) / (double) end_fade_samples;
         buf.samples[buf.num_samples - i] 
-            = (int32_t) (buf.samples[buf.num_samples - i] * amplitude);
+            = buf.samples[buf.num_samples - i] * amplitude;
     }
 }
 
@@ -94,10 +100,9 @@ void synth_play(synth a_synth, audio_buf buf) {
             {
                 for (size_t i = 0; i < buf.num_samples; i++) {
                     double d_i = (double) i;
-                    double sample =
-                        a_synth.amplitude 
-                        * sin((2 * M_PI * d_i) * (a_synth.freq / d_sample_rate));
-                    buf.samples[i] += (int32_t) (INT32_MAX * sample);
+                    buf.samples[i] += a_synth.amplitude 
+                                    * sin((2 * M_PI * d_i) 
+                                    * (a_synth.freq / d_sample_rate));
                 }
             }
             break;
