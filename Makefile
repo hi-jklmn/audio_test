@@ -14,8 +14,8 @@ clean:
 	rm -f *.raw
 	rm -f *.wav
 
-run: clean build
-	./target/audio
+run: build
+	./$(TARGET_DIR)/audio
 	sox -r 44.1k -e signed -b 32 -c 1 out.raw out.wav
 	play out.wav
 
