@@ -110,7 +110,6 @@ double harmonic_series_quantize(double base_freq, double input) {
 }
 
 int main () {
-    printf("hello\n");
     srand(0);
 
     size_t buf_size_millis = 1 << 12;
