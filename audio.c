@@ -118,7 +118,6 @@ int main () {
 
     audio_buf final_buf =
         new_audio_buf((((float) n_bufs + 1) / 2) * buf_size_millis,SAMPLE_RATE);
-        //new_audio_buf(n_bufs * buf_size_millis, SAMPLE_RATE);
 
     audio_buf *my_bufs = (audio_buf*) malloc(sizeof(audio_buf) * n_bufs);
 
@@ -137,6 +136,7 @@ int main () {
 
         for (size_t j = 1; j <= n_sines; j++) {
             double r = (rand() / (double) RAND_MAX);
+            // Dirty way to bias distribution towards lower frequencies
             r = (r * r * r * r * r * r);
 
             my_sin.freq = (max_freq - min_freq) * r + min_freq;
@@ -147,6 +147,8 @@ int main () {
 
         apply_fade_audio_buf(
             my_bufs[i],
+            // Do not want to fade start of first buffer
+            // Nor want to fade end of last buffer
             (i != 0)            ? 0.5 : 0.0,
             (i != (n_bufs - 1)) ? 0.5 : 0.0
         );
