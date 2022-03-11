@@ -9,40 +9,38 @@
 #define SAMPLE_RATE 44100
 
 typedef struct {
-    size_t num_samples;
     size_t rate;
+    size_t num_samples;
     double* samples;
 } audio_buf;
 
-audio_buf new_audio_buf(size_t millis, size_t sample_rate) {
-    // Trying to avoid overflow
-    size_t num_samples = 
-        (size_t) (((double) millis * (double) sample_rate) / 1000.0);
+static audio_buf new_audio_buf(size_t millis, size_t sample_rate) {
+    size_t num_samples = millis * (sample_rate / 1000);
+
+    size_t n_bytes = sizeof(double) * num_samples;
 
     audio_buf ret = {
         .rate = sample_rate,
         .num_samples = num_samples,
+        .samples = malloc(n_bytes),
     };
 
-    size_t n_bytes = sizeof(double) * num_samples;
-
-    ret.samples = (double*) malloc(n_bytes);
     memset(ret.samples, 0, n_bytes);
 
     return ret;
 }
 
-void fwrite_audio_buf(audio_buf buf, FILE *stream) {
+static void fwrite_audio_buf(audio_buf buf, FILE *stream) {
     int32_t *int_buf = malloc(buf.num_samples * sizeof(int32_t));
 
-    for (int i = 0; i < buf.num_samples; i++) {
+    for (size_t i = 0; i < buf.num_samples; i++) {
         int_buf[i] = INT32_MAX * fmin(fmax(buf.samples[i], -1.0), 1.0);
     }
 
     fwrite(int_buf, sizeof(int32_t), buf.num_samples, stream);
 }
 
-void apply_fade_audio_buf(
+static void apply_fade_audio_buf(
     audio_buf buf, 
     double start_fade_pct, 
     double end_fade_pct
@@ -66,7 +64,7 @@ void apply_fade_audio_buf(
     }
 }
 
-void add_audio_buf(
+static void add_audio_buf(
     audio_buf source_buf,
     size_t source_sample_start,
     audio_buf dest_buf,
@@ -93,23 +91,51 @@ typedef struct {
     synth_type type;
 } synth;
 
-void synth_play(synth a_synth, audio_buf buf) {
+// https://www.musicdsp.org/en/latest/Synthesis/9-fast-sine-wave-calculation.html 
+typedef struct {
+    double b1;
+    double y[3];
+} sin_gen;
+
+void sin_gen_step(sin_gen *g) {
+    g->y[0] = g->b1 * g->y[1] - g->y[2];
+    g->y[2] = g->y[1];
+    g->y[1] = g->y[0];
+}
+
+double sin_gen_peek(sin_gen *g) {
+    return g->y[0];
+}
+
+sin_gen new_sin_gen(
+    double phase, 
+    double freq, 
+    double samplerate
+) {
+    sin_gen ret = {0};
+    double w = freq * 2.0 * M_PI / samplerate;
+    ret.b1 = 2.0 * cos(w);
+    ret.y[1] = sin(phase - w);
+    ret.y[2] = sin(phase - 2 * w);
+    sin_gen_step(&ret);
+    return ret;
+}
+
+static void synth_play(synth a_synth, audio_buf buf) {
     double d_sample_rate = (double) buf.rate;
     switch (a_synth.type) {
-        case SYNTH_TYPE_SIN:
-            {
+        case SYNTH_TYPE_SIN: {
+                double a = a_synth.amplitude;
+                sin_gen sg = new_sin_gen(0.0, a_synth.freq, d_sample_rate);
                 for (size_t i = 0; i < buf.num_samples; i++) {
-                    double d_i = (double) i;
-                    buf.samples[i] += a_synth.amplitude 
-                                    * sin((2 * M_PI * d_i) 
-                                    * (a_synth.freq / d_sample_rate));
+                    sin_gen_step(&sg);
+                    buf.samples[i] += a * sin_gen_peek(&sg);
                 }
-            }
-            break;
+        } break;
     }
 }
 
-double harmonic_series_quantize(double base_freq, double input) {
+static double harmonic_series_quantize(double base_freq, double input) {
     double lower_harmonic_index = floor(input / base_freq);
     return lower_harmonic_index * base_freq;
 }
