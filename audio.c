@@ -16,17 +16,13 @@ typedef struct {
 
 static audio_buf new_audio_buf(size_t millis, size_t sample_rate) {
     size_t num_samples = millis * (sample_rate / 1000);
-
     size_t n_bytes = sizeof(double) * num_samples;
-
     audio_buf ret = {
         .rate = sample_rate,
         .num_samples = num_samples,
         .samples = malloc(n_bytes),
     };
-
     memset(ret.samples, 0, n_bytes);
-
     return ret;
 }
 
